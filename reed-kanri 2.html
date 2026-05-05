@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🎺 リード在庫管理</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+:root {
+  --primary:#2c3e50; --accent:#e74c3c; --success:#27ae60;
+  --admin:#6c3483; --bg:#ecf0f1; --card:#fff;
+  --text:#2c3e50; --muted:#7f8c8d; --border:#bdc3c7;
+}
+html,body { height:100%; }
+body {
+  font-family:'Segoe UI','Helvetica Neue',sans-serif;
+  background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);
+  min-height:100vh; display:flex; align-items:center; justify-content:center;
+}
+.container {
+  width:100%; max-width:600px; background:var(--card);
+  border-radius:20px; box-shadow:0 20px 60px rgba(0,0,0,.3);
+  overflow:hidden; margin:16px; max-height:90vh;
+  display:flex; flex-direction:column;
+}
+.screen { display:none; flex:1; overflow-y:auto; flex-direction:column; animation:fadeIn .3s ease; }
+.screen.active { display:flex; }
+@keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+
+/* ── Header ── */
+.hd { color:white; padding:18px 22px; text-align:center; flex-shrink:0; }
+.hd.blue  { background:linear-gradient(135deg,var(--primary),#34495e); }
+.hd.purple{ background:linear-gradient(135deg,var(--admin),#4a235a); }
+.hd h1 { font-size:22px; margin-bottom:3px; font-weight:700; }
+.hd p  { font-size:12px; opacity:.9; }
+
+.content { padding:20px 18px; overflow-y:auto; flex:1; }
+
+/* ── Buttons ── */
+button { font-family:inherit; cursor:pointer; border:none; border-radius:8px; font-size:14px; font-weight:600; transition:all .2s; padding:10px 16px; }
+.btn-red    { background:var(--accent); color:white; width:100%; padding:13px; font-size:15px; margin-bottom:10px; }
+.btn-red:hover { background:#c0392b; transform:scale(.98); }
+.btn-dark   { background:var(--primary); color:white; }
+.btn-dark:hover { background:#1a252f; }
+.btn-green  { background:var(--success); color:white; }
+.btn-green:hover { background:#229954; }
+.btn-purple { background:var(--admin); color:white; width:100%; padding:13px; font-size:15px; margin-bottom:10px; }
+.btn-purple:hover { background:#4a235a; transform:scale(.98); }
+.btn-del    { background:#e74c3c; color:white; padding:5px 9px; font-size:11px; }
+.btn-del:hover { background:#c0392b; }
+.btn-warn   { background:#ff9800; color:white; }
+.btn-warn:hover { background:#e68900; }
+.btn-sm     { padding:8px 14px; font-size:13px; }
+.btn-full   { width:100%; margin-bottom:8px; }
+.btn-back   { background:var(--muted); color:white; margin-bottom:14px; font-size:13px; }
+.btn-back:hover { background:var(--text); }
+.btn-dist {
+  background:linear-gradient(135deg,#e67e22,#d35400);
+  color:white; width:100%; padding:15px; font-size:15px;
+  border-radius:12px; margin:14px 0;
+  box-shadow:0 4px 15px rgba(230,126,34,.35);
+}
+.btn-dist:hover { transform:scale(.98); }
+
+/* ── Forms ── */
+.fg { margin-bottom:16px; }
+label { display:block; font-weight:600; margin-bottom:6px; font-size:13px; }
+input[type=text],input[type=number],input[type=password],select {
+  width:100%; padding:11px 12px; border:2px solid var(--border);
+  border-radius:8px; font-size:15px; font-family:inherit; transition:border-color .2s;
+}
+input:focus,select:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(231,76,60,.1); }
+.code-inp { font-size:20px; letter-spacing:5px; text-align:center; font-weight:bold; text-transform:uppercase; }
+
+/* ── Instrument grid ── */
+.inst-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.inst-btn {
+  padding:20px; font-size:17px; background:var(--bg); color:var(--text);
+  border:3px solid var(--border); border-radius:12px; font-weight:700;
+}
+.inst-btn:hover { border-color:var(--accent); background:#fff9f5; transform:scale(1.04); }
+
+/* ── Reed selector ── */
+.sel-step { background:var(--bg); border-radius:10px; padding:12px; margin-bottom:10px; }
+.sel-title { font-weight:700; font-size:11px; color:var(--muted); margin-bottom:8px; text-transform:uppercase; letter-spacing:1px; }
+.chips { display:flex; flex-wrap:wrap; gap:7px; }
+.chip {
+  padding:6px 13px; border-radius:20px; font-size:13px; font-weight:600;
+  cursor:pointer; border:2px solid var(--border); background:white; color:var(--text); transition:all .15s;
+}
+.chip:hover { border-color:var(--accent); }
+.chip.on { background:var(--accent); color:white; border-color:var(--accent); }
+.preview {
+  background:linear-gradient(135deg,var(--primary),#34495e);
+  color:white; padding:11px 14px; border-radius:8px; margin-bottom:12px;
+  font-weight:700; font-size:14px; display:none; text-align:center;
+}
+.preview.show { display:block; }
+
+/* ── Qty control ── */
+.qty-row { display:flex; align-items:center; justify-content:center; gap:18px; margin:18px 0; }
+.qty-btn {
+  width:60px; height:60px; font-size:36px; border-radius:12px;
+  background:var(--accent); color:white; display:flex; align-items:center; justify-content:center;
+  box-shadow:0 3px 10px rgba(231,76,60,.3); flex-shrink:0;
+}
+.qty-btn:active { transform:scale(.93); }
+.qty-num { font-size:50px; font-weight:900; line-height:1; min-width:70px; text-align:center; }
+.qty-unit { font-size:12px; color:var(--muted); margin-top:4px; text-align:center; }
+
+/* ── Banner ── */
+.banner {
+  background:linear-gradient(135deg,#667eea,#764ba2);
+  color:white; padding:15px; border-radius:12px; text-align:center; margin-bottom:14px;
+}
+.banner h2 { font-size:15px; margin-bottom:4px; }
+.banner p  { font-size:12px; opacity:.9; }
+
+/* ── Reed card (member) ── */
+.reed-card { background:var(--primary); color:white; padding:13px; border-radius:10px; margin-bottom:11px; }
+.reed-card-top { display:flex; justify-content:space-between; align-items:center; font-weight:700; font-size:14px; margin-bottom:3px; }
+
+/* ── Member card (admin) ── */
+.mem-card { background:var(--bg); padding:13px; border-radius:8px; margin-bottom:10px; border-left:4px solid var(--accent); }
+.mem-name { font-weight:700; font-size:14px; margin-bottom:3px; }
+.mem-sub  { font-size:11px; color:var(--muted); margin-bottom:8px; }
+.stock-row { background:white; padding:9px 11px; border-radius:6px; margin-bottom:6px; border-left:3px solid var(--success); }
+.stock-name { font-weight:600; font-size:13px; }
+.stock-sub  { font-size:12px; color:var(--muted); }
+
+/* ── School stock card ── */
+.sc-card { background:white; border:2px solid var(--border); border-radius:10px; margin-bottom:11px; overflow:hidden; }
+.sc-head {
+  background:linear-gradient(135deg,var(--admin),#4a235a);
+  color:white; padding:10px 14px;
+  display:flex; justify-content:space-between; align-items:center;
+}
+.sc-name  { font-weight:700; font-size:14px; }
+.sc-badge { font-size:18px; font-weight:900; background:rgba(255,255,255,.2); padding:3px 11px; border-radius:20px; }
+.sc-badge.low { background:rgba(231,76,60,.7); }
+.sc-body  { padding:11px 14px; }
+.sc-ctrl  { display:flex; align-items:center; gap:10px; }
+.sc-adj   { width:34px; height:34px; font-size:20px; border-radius:7px; background:var(--admin); color:white; display:flex; align-items:center; justify-content:center; }
+.sc-adj:hover { background:#4a235a; }
+.sc-val   { font-size:24px; font-weight:900; color:var(--admin); min-width:48px; text-align:center; }
+
+/* ── Distribute modal ── */
+.dist-list { background:var(--bg); border-radius:8px; padding:10px 14px; margin:10px 0; text-align:left; max-height:200px; overflow-y:auto; }
+.dist-row  { display:flex; justify-content:space-between; font-size:13px; padding:4px 0; border-bottom:1px solid #ddd; }
+.dist-row:last-child { border-bottom:none; }
+.dist-total { font-weight:700; font-size:14px; color:var(--accent); margin-top:8px; text-align:right; }
+
+/* ── Pending ── */
+.pend-item { background:#fff3cd; padding:9px 12px; border-radius:6px; margin-bottom:7px; border-left:3px solid #ff9800; }
+.pend-name { font-weight:600; color:#856404; font-size:13px; }
+
+/* ── Manage list ── */
+.mg-item { display:flex; align-items:center; justify-content:space-between; background:var(--bg); padding:9px 12px; border-radius:7px; margin-bottom:7px; border-left:3px solid var(--primary); }
+.mg-name { font-weight:600; font-size:13px; }
+
+/* ── Tabs ── */
+.tab-bar { display:flex; gap:5px; margin-bottom:14px; flex-wrap:wrap; }
+.tab-btn { flex:1; padding:8px 5px; font-size:11px; font-weight:700; background:var(--bg); color:var(--text); border:2px solid var(--border); border-radius:7px; cursor:pointer; text-align:center; min-width:0; }
+.tab-btn.on { background:var(--admin); color:white; border-color:var(--admin); }
+
+/* ── Section title ── */
+.sec-title { font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin:16px 0 9px; padding-bottom:5px; border-bottom:2px solid var(--border); }
+
+/* ── Info/warn box ── */
+.info-box { background:#eaf4fb; border-left:4px solid #3498db; padding:10px 13px; border-radius:6px; margin-bottom:13px; font-size:13px; color:#1a5276; }
+
+/* ── Modal ── */
+.modal { display:none; position:fixed; z-index:1000; inset:0; background:rgba(0,0,0,.45); align-items:center; justify-content:center; }
+.modal.show { display:flex; }
+.modal-box {
+  background:white; padding:24px; border-radius:16px;
+  max-width:400px; width:92%; text-align:center;
+  animation:slideUp .28s ease; max-height:80vh; overflow-y:auto;
+}
+@keyframes slideUp { from{transform:translateY(28px);opacity:0} to{transform:translateY(0);opacity:1} }
+.modal-box h2 { font-size:22px; margin-bottom:8px; }
+.modal-box p  { font-size:14px; color:var(--muted); margin-bottom:14px; }
+.modal-box.ok  h2 { color:var(--success); }
+.modal-box.warn h2 { color:var(--accent); }
+.modal-box.adm  h2 { color:var(--admin); }
+
+@media(max-width:600px){
+  .container{border-radius:0;margin:0;max-height:100vh;}
+  .content{padding:16px 13px;}
+  .inst-grid{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+<!-- ① トップ -->
+<div id="sc-top" class="screen active">
+  <div class="hd blue"><h1>🎺 リード在庫管理</h1><p>吹奏楽部</p></div>
+  <div class="content">
+    <div class="fg">
+      <label>セキュリティコードを入力</label>
+      <input type="text" id="secCode" class="code-inp" placeholder="ONGAKUDO" maxlength="12">
+      <p style="text-align:center;font-size:12px;color:var(--muted);margin-top:6px;">学校から指定されたコードを入力してください</p>
+    </div>
+    <button class="btn-red" onclick="verifySecurity()">部員としてログイン</button>
+    <div style="text-align:center;color:var(--muted);font-size:13px;margin:4px 0 10px;">または</div>
+    <button class="btn-purple" onclick="go('admin-login')">🔐 管理者ログイン</button>
+  </div>
+</div>
+
+<!-- ② 管理者ログイン -->
+<div id="sc-admin-login" class="screen">
+  <div class="hd purple"><h1>🔐 管理者ログイン</h1><p>管理者専用</p></div>
+  <div class="content">
+    <button class="btn-back" onclick="go('top')">＜ 戻る</button>
+    <div class="fg">
+      <label>管理者パスワード</label>
+      <input type="password" id="adminPw" placeholder="パスワードを入力">
+    </div>
+    <button class="btn-purple btn-full" onclick="verifyAdmin()">ログイン</button>
+  </div>
+</div>
+
+<!-- ③ 楽器選択 -->
+<div id="sc-instrument" class="screen">
+  <div class="hd blue"><h1>🎺 楽器を選択</h1><p>あなたの楽器は？</p></div>
+  <div class="content">
+    <div class="inst-grid">
+      <button class="inst-btn" onclick="selectInst('Saxophone')">🎷 サックス</button>
+      <button class="inst-btn" onclick="selectInst('Clarinet')">🎺 クラリネット</button>
+    </div>
+  </div>
+</div>
+
+<!-- ④ ログイン -->
+<div id="sc-login" class="screen">
+  <div class="hd blue"><h1>ログイン</h1><p id="loginSub"></p></div>
+  <div class="content">
+    <button class="btn-back" onclick="go('instrument')">＜ 戻る</button>
+    <div id="login-sec">
+      <div class="fg">
+        <label>あなたの名前を選択</label>
+        <select id="memberSel"><option value="">-- 選択してください --</option></select>
+      </div>
+      <button class="btn-red" onclick="loginMember()">ログイン</button>
+      <p style="text-align:center;margin-top:10px;color:var(--muted);font-size:12px;">初めての方は下へ ↓</p>
+    </div>
+    <button class="btn-dark btn-sm btn-full" onclick="toggleReg()" style="margin-top:10px;">新規登録 →</button>
+    <div id="reg-sec" style="display:none;margin-top:14px;padding-top:14px;border-top:2px solid var(--border);">
+      <div class="fg"><label>新しい名前を入力</label><input type="text" id="newName" placeholder="例: 田中太郎"></div>
+      <button class="btn-green btn-full" onclick="registerMember()">新規登録</button>
+      <button class="btn-dark btn-sm btn-full" onclick="toggleReg()" style="margin-top:6px;">← ログインに戻る</button>
+    </div>
+  </div>
+</div>
+
+<!-- ⑤ リード追加 -->
+<div id="sc-add-reed" class="screen">
+  <div class="hd blue"><h1>🎵 リードを追加</h1><p>銘柄を選んで登録</p></div>
+  <div class="content">
+    <button class="btn-back" onclick="go('dashboard')">＜ ダッシュボードへ</button>
+    <div class="info-box">メーカー → カラー → 強度の順に選択してください</div>
+    <div class="sel-step"><div class="sel-title">① メーカー</div><div class="chips" id="maker-chips"></div></div>
+    <div class="sel-step" id="color-step" style="display:none;"><div class="sel-title">② カラー</div><div class="chips" id="color-chips"></div></div>
+    <div class="sel-step" id="str-step" style="display:none;"><div class="sel-title">③ 強度</div><div class="chips" id="str-chips"></div></div>
+    <div class="preview" id="reed-preview">📋 選択中：<span id="preview-txt"></span></div>
+    <button class="btn-green btn-full" id="add-btn" style="display:none;" onclick="addReed()">このリードを追加</button>
+  </div>
+</div>
+
+<!-- ⑥ 部員ダッシュボード -->
+<div id="sc-dashboard" class="screen">
+  <div class="hd blue"><h1 id="dash-name">ようこそ</h1><p>リード在庫管理</p></div>
+  <div class="content">
+    <div class="banner">
+      <h2>あなたのリード設定</h2>
+      <p>前借りした月数を入力してください（通常は0）</p>
+    </div>
+    <button class="btn-dark btn-sm btn-full" onclick="go('add-reed')" style="margin-bottom:12px;">+ リード銘柄を追加</button>
+    <div id="reeds-list"></div>
+    <div style="margin-top:16px;">
+      <button class="btn-green btn-full" onclick="saveReeds()">📝 保存して完了</button>
+      <button class="btn-dark btn-sm btn-full" onclick="logout()">ログアウト</button>
+      <button class="btn-warn btn-sm btn-full" onclick="document.getElementById('del-modal').classList.add('show')">🗑️ アカウント削除</button>
+    </div>
+  </div>
+</div>
+
+<!-- ⑦ 管理者メイン -->
+<div id="sc-admin" class="screen">
+  <div class="hd purple"><h1>🔐 管理者画面</h1><p id="admin-sub">学校リード在庫管理</p></div>
+  <div class="content">
+    <button class="btn-back" onclick="adminLogout()">← ログアウト</button>
+    <!-- 楽器切り替え -->
+    <div class="tab-bar">
+      <button class="tab-btn on" id="itab-Saxophone" onclick="switchInst('Saxophone')">🎷 サックス</button>
+      <button class="tab-btn"    id="itab-Clarinet"  onclick="switchInst('Clarinet')">🎺 クラリネット</button>
+    </div>
+    <!-- 機能タブ -->
+    <div class="tab-bar">
+      <button class="tab-btn on" id="tab-stock"   onclick="switchTab('stock')">🏫 学校在庫</button>
+      <button class="tab-btn"    id="tab-members" onclick="switchTab('members')">👥 部員一覧</button>
+      <button class="tab-btn"    id="tab-manage"  onclick="switchTab('manage')">⚙️ リード管理</button>
+      <button class="tab-btn"    id="tab-csv"     onclick="exportCSV()">📥 CSV</button>
+    </div>
+    <div id="tab-stock-body"></div>
+    <div id="tab-members-body" style="display:none;"></div>
+    <div id="tab-manage-body"  style="display:none;"></div>
+  </div>
+</div>
+
+<!-- モーダル: 成功 -->
+<div id="ok-modal" class="modal">
+  <div class="modal-box ok">
+    <h2>✓ 完了！</h2>
+    <p id="ok-msg"></p>
+    <button class="btn-dark btn-full" onclick="closeModal('ok-modal')">閉じる</button>
+  </div>
+</div>
+
+<!-- モーダル: アカウント削除確認 -->
+<div id="del-modal" class="modal">
+  <div class="modal-box warn">
+    <h2>⚠️ アカウント削除</h2>
+    <p>本当に削除しますか？<br>この操作は取り消せません。</p>
+    <button class="btn-dark btn-full" onclick="closeModal('del-modal')" style="margin-bottom:8px;">キャンセル</button>
+    <button class="btn-del" onclick="confirmDelAccount()" style="width:100%;padding:10px;">削除確定</button>
+  </div>
+</div>
+
+<!-- モーダル: 一括配布確認 -->
+<div id="dist-modal" class="modal">
+  <div class="modal-box adm">
+    <h2>📦 一括配布確認</h2>
+    <p id="dist-desc"></p>
+    <div class="dist-list" id="dist-preview"></div>
+    <div class="dist-total" id="dist-total"></div>
+    <div style="margin-top:12px;">
+      <button class="btn-dark btn-full" onclick="closeModal('dist-modal')" style="margin-bottom:8px;">キャンセル</button>
+      <button class="btn-dist" onclick="execDistribute()">✅ 配布を実行する</button>
+    </div>
+  </div>
+</div>
+
+</div><!-- /container -->
+
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+<script>
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Firebase 初期化
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+firebase.initializeApp({
+  apiKey:"AIzaSyA2mI7Cv1gIbUKwfuFKQkDj_QVx6WmiZfU",
+  authDomain:"riidokanri.firebaseapp.com",
+  projectId:"riidokanri",
+  storageBucket:"riidokanri.firebasestorage.app",
+  messagingSenderId:"437505590526",
+  appId:"1:437505590526:web:463ca03512bdca988a11af"
+});
+const db = firebase.firestore();
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 定数
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const SEC_CODE     = 'ONGAKUDO';
+const ADMIN_PW     = 'KANRISHA';   // ← 管理者パスワードをここで変更
+
+const DEFAULT_COLORS = [
+  { key:'none',       label:'無色', hex:'#cccccc' },
+  { key:'silver',     label:'銀',   hex:'#aaaaaa' },
+  { key:'gold',       label:'金',   hex:'#d4a017' },
+  { key:'light-blue', label:'水色', hex:'#87ceeb' },
+  { key:'blue',       label:'青',   hex:'#1565c0' },
+];
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 状態
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+let selInst    = null;   // 楽器
+let memberId   = null;
+let memberName = null;
+let allMembers = [];
+let myReeds    = {};     // { stockDocId: { reedId, reedName, advanceMonths } }
+let myReedDets = {};     // { reedId: reedDoc }
+
+let selMaker = null, selColor = null, selStr = null;
+let activeColors = [...DEFAULT_COLORS];
+
+// 管理者
+let adminInst = 'Saxophone';
+let aData     = {};      // { members, reeds, stocks, lastUpdates }
+let schoolQty = {};      // { reedId: qty }
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ユーティリティ
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function instName(i){ return {Saxophone:'サックス',Clarinet:'クラリネット'}[i]||i; }
+function colorInfo(k){ return activeColors.find(c=>c.key===k||c.label===k)||{label:k,hex:'#999'}; }
+function showOk(msg){ document.getElementById('ok-msg').textContent=msg; document.getElementById('ok-modal').classList.add('show'); }
+function closeModal(id){ document.getElementById(id).classList.remove('show'); }
+
+function go(sc){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  const el = document.getElementById('sc-'+sc);
+  if(el) el.classList.add('active');
+  if(sc==='login')     loadMembers();
+  if(sc==='add-reed')  initAddReed();
+  if(sc==='dashboard') loadDash();
+  if(sc==='admin')     loadAdmin();
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ① トップ: セキュリティコード
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function verifySecurity(){
+  const v = document.getElementById('secCode').value.trim().toUpperCase();
+  if(!v){ alert('コードを入力してください'); return; }
+  if(v===SEC_CODE) go('instrument');
+  else alert('コードが正しくありません');
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ② 管理者ログイン
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function verifyAdmin(){
+  const pw = document.getElementById('adminPw').value.trim();
+  if(pw===ADMIN_PW){ document.getElementById('adminPw').value=''; go('admin'); }
+  else alert('パスワードが正しくありません');
+}
+function adminLogout(){ adminInst='Saxophone'; aData={}; schoolQty={}; go('top'); }
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ③ 楽器選択
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function selectInst(inst){
+  selInst = inst;
+  document.getElementById('loginSub').textContent = 'あなたの楽器: '+instName(inst);
+  go('login');
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ④ ログイン・新規登録
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+async function loadMembers(){
+  try{
+    const snap = await db.collection('members').where('instrument','==',selInst).get();
+    const sel  = document.getElementById('memberSel');
+    sel.innerHTML='<option value="">-- 選択してください --</option>';
+    allMembers = [];
+    snap.forEach(d=>{ allMembers.push({id:d.id,...d.data()}); const o=document.createElement('option'); o.value=d.id; o.textContent=d.data().name; sel.appendChild(o); });
+  }catch(e){ alert('読み込み失敗: '+e.message); }
+}
+function loginMember(){
+  const id = document.getElementById('memberSel').value;
+  if(!id){ alert('名前を選択してください'); return; }
+  memberId   = id;
+  memberName = allMembers.find(m=>m.id===id)?.name||'';
+  go('dashboard');
+}
+function toggleReg(){
+  const ls=document.getElementById('login-sec'), rs=document.getElementById('reg-sec');
+  ls.style.display=ls.style.display==='none'?'block':'none';
+  rs.style.display=rs.style.display==='none'?'block':'none';
+}
+async function registerMember(){
+  const name = document.getElementById('newName').value.trim();
+  if(!name){ alert('名前を入力してください'); return; }
+  try{
+    const ref = await db.collection('members').add({name,instrument:selInst,createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+    memberId=ref.id; memberName=name;
+    document.getElementById('newName').value='';
+    await loadMembers();
+    go('dashboard');
+  }catch(e){ alert('登録失敗: '+e.message); }
+}
+function logout(){ memberId=memberName=null; myReeds={}; selInst=null; go('top'); }
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ⑤ リード追加
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+async function initAddReed(){
+  selMaker=selColor=selStr=null;
+  ['color-step','str-step'].forEach(id=>document.getElementById(id).style.display='none');
+  document.getElementById('reed-preview').classList.remove('show');
+  document.getElementById('add-btn').style.display='none';
+  try{
+    const snap = await db.collection('reed_options').doc('config').get();
+    const cfg  = snap.exists ? snap.data() : defCfg();
+    if(cfg.colors && typeof cfg.colors[0]==='object') activeColors=cfg.colors;
+    else activeColors=[...DEFAULT_COLORS];
+    window._cfg = cfg;
+  }catch(e){ window._cfg=defCfg(); activeColors=[...DEFAULT_COLORS]; }
+  renderMakers(window._cfg);
+}
+function defCfg(){ return { makers:['YAMAHA','Vandoren','Rico','La Voz',"D'Addario"], colors:[...DEFAULT_COLORS], strengths:['1','1.5','2','2.5','3','3.5','4','4.5','5'] }; }
+function chip(label,onclick,style){
+  const b=document.createElement('button'); b.className='chip'; b.textContent=label;
+  if(style) Object.assign(b.style,style);
+  b.onclick=onclick; return b;
+}
+function renderMakers(cfg){
+  const c=document.getElementById('maker-chips'); c.innerHTML='';
+  (cfg.makers||[]).forEach(m=>{ const b=chip(m,()=>selMaker2(m,b)); c.appendChild(b); });
+}
+function selMaker2(maker,el){
+  selMaker=maker; selColor=selStr=null;
+  document.querySelectorAll('#maker-chips .chip').forEach(c=>c.classList.remove('on')); el.classList.add('on');
+  document.getElementById('color-step').style.display='block';
+  document.getElementById('str-step').style.display='none';
+  document.getElementById('reed-preview').classList.remove('show');
+  document.getElementById('add-btn').style.display='none';
+  const c=document.getElementById('color-chips'); c.innerHTML='';
+  (window._cfg?.colors||activeColors).forEach(co=>{
+    const c2=typeof co==='object'?co:colorInfo(co);
+    const b=chip(c2.label,()=>selColor2(c2.key||c2.label,b),{borderLeft:`4px solid ${c2.hex}`});
+    c.appendChild(b);
+  });
+}
+function selColor2(key,el){
+  selColor=key; selStr=null;
+  document.querySelectorAll('#color-chips .chip').forEach(c=>c.classList.remove('on')); el.classList.add('on');
+  document.getElementById('str-step').style.display='block';
+  document.getElementById('reed-preview').classList.remove('show');
+  document.getElementById('add-btn').style.display='none';
+  const c=document.getElementById('str-chips'); c.innerHTML='';
+  (window._cfg?.strengths||[]).forEach(s=>{ const b=chip(s,()=>selStr2(s,b)); c.appendChild(b); });
+}
+function selStr2(s,el){
+  selStr=s;
+  document.querySelectorAll('#str-chips .chip').forEach(c=>c.classList.remove('on')); el.classList.add('on');
+  const name=`${selMaker} ${colorInfo(selColor).label} ${selStr}`;
+  document.getElementById('preview-txt').textContent=name;
+  document.getElementById('reed-preview').classList.add('show');
+  document.getElementById('add-btn').style.display='block';
+}
+function buildReedName(){ return `${selMaker} ${colorInfo(selColor).label} ${selStr}`; }
+
+async function addReed(){
+  if(!selMaker||!selColor||!selStr){ alert('全て選択してください'); return; }
+  const name=buildReedName();
+  try{
+    const ex=await db.collection('reeds').where('instrument','==',selInst).where('name','==',name).get();
+    let reedId;
+    if(!ex.empty){ reedId=ex.docs[0].id; }
+    else{
+      const ref=await db.collection('reeds').add({name,maker:selMaker,color:selColor,strength:selStr,instrument:selInst,createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+      reedId=ref.id;
+    }
+    const dup=await db.collection('member_stocks').where('memberId','==',memberId).where('reedId','==',reedId).get();
+    if(!dup.empty){ alert(`「${name}」はすでに登録されています`); return; }
+    await db.collection('member_stocks').add({memberId,memberName,reedId,reedName:name,instrument:selInst,advanceMonths:0,createdAt:firebase.firestore.FieldValue.serverTimestamp(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    showOk(`「${name}」を追加しました！`);
+    setTimeout(()=>go('dashboard'),1400);
+  }catch(e){ alert('追加失敗: '+e.message); }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ⑥ 部員ダッシュボード
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+async function loadDash(){
+  document.getElementById('dash-name').textContent=memberName+'さん';
+  try{
+    const snap=await db.collection('member_stocks').where('memberId','==',memberId).get();
+    myReeds={}; const ids=[];
+    snap.forEach(d=>{ const v=d.data(); myReeds[d.id]={reedId:v.reedId,reedName:v.reedName,advanceMonths:v.advanceMonths||0}; if(v.reedId) ids.push(v.reedId); });
+    myReedDets={};
+    for(const rid of [...new Set(ids)]){ const rd=await db.collection('reeds').doc(rid).get(); if(rd.exists) myReedDets[rid]={id:rid,...rd.data()}; }
+    renderDash();
+  }catch(e){ console.error(e); }
+}
+function renderDash(){
+  const c=document.getElementById('reeds-list');
+  if(!Object.keys(myReeds).length){
+    c.innerHTML=`<div style="text-align:center;padding:24px 0;color:var(--muted);"><p>リードが登録されていません</p><p style="font-size:12px;margin-top:6px;">「リード銘柄を追加」から追加してください</p></div>`;
+    return;
+  }
+  let h='';
+  Object.entries(myReeds).forEach(([did,s])=>{
+    const name=s.reedName||myReedDets[s.reedId]?.name||'不明';
+    const m=s.advanceMonths;
+    const col=m>0?'#f39c12':'white';
+    const lbl=m===0?'前借りなし':`${m}ヶ月前借り中`;
+    h+=`<div class="reed-card">
+      <div class="reed-card-top"><span>${name}</span><button class="btn-del" onclick="delMyReed('${did}')">削除</button></div>
+      <div style="background:rgba(255,255,255,0.12);padding:11px;border-radius:8px;margin-top:8px;">
+        <label style="font-size:12px;color:rgba(255,255,255,.8);font-weight:700;display:block;margin-bottom:2px;">前借り月数</label>
+        <div class="qty-row">
+          <button class="qty-btn" onclick="adjAdv('${did}',-1)">−</button>
+          <div><div class="qty-num" style="color:${col};">${m}</div><div class="qty-unit" style="color:rgba(255,255,255,.7);">${lbl}</div></div>
+          <button class="qty-btn" onclick="adjAdv('${did}',+1)">+</button>
+        </div>
+      </div>
+    </div>`;
+  });
+  c.innerHTML=h;
+}
+function adjAdv(did,d){ if(!myReeds[did]) return; myReeds[did].advanceMonths=Math.max(0,myReeds[did].advanceMonths+d); renderDash(); }
+async function delMyReed(did){
+  if(!confirm('このリードをリストから削除しますか？')) return;
+  try{ await db.collection('member_stocks').doc(did).delete(); delete myReeds[did]; renderDash(); }catch(e){ alert('削除失敗: '+e.message); }
+}
+async function saveReeds(){
+  try{
+    const batch=db.batch();
+    Object.entries(myReeds).forEach(([did,s])=>{
+      batch.update(db.collection('member_stocks').doc(did),{advanceMonths:s.advanceMonths,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    });
+    await batch.commit();
+    showOk('保存しました！');
+  }catch(e){ alert('保存失敗: '+e.message); }
+}
+async function confirmDelAccount(){
+  if(!confirm('本当に削除しますか？')) return;
+  try{
+    await db.collection('members').doc(memberId).delete();
+    const snap=await db.collection('member_stocks').where('memberId','==',memberId).get();
+    const batch=db.batch(); snap.forEach(d=>batch.delete(d.ref)); await batch.commit();
+    closeModal('del-modal'); alert('アカウントを削除しました'); logout();
+  }catch(e){ alert('削除失敗: '+e.message); }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ⑦ 管理者画面
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+async function loadAdmin(){
+  adminInst='Saxophone'; updInstTabs(); await fetchAdmin(); switchTab('stock');
+}
+function updInstTabs(){
+  ['Saxophone','Clarinet'].forEach(i=>document.getElementById('itab-'+i)?.classList.toggle('on',i===adminInst));
+  document.getElementById('admin-sub').textContent=instName(adminInst)+' の在庫';
+}
+async function switchInst(inst){
+  adminInst=inst; updInstTabs(); await fetchAdmin();
+  // 現在表示中のタブを再描画
+  const cur=['stock','members','manage'].find(t=>document.getElementById('tab-'+t+'-body').style.display!=='none')||'stock';
+  renderTab(cur);
+}
+function switchTab(t){
+  ['stock','members','manage'].forEach(n=>{
+    document.getElementById('tab-'+n+'-body').style.display=n===t?'block':'none';
+    document.getElementById('tab-'+n).classList.toggle('on',n===t);
+  });
+  renderTab(t);
+}
+function renderTab(t){
+  if(t==='stock')   renderStock();
+  if(t==='members') renderMembers();
+  if(t==='manage')  renderManage();
+}
+
+async function fetchAdmin(){
+  try{
+    const [mSnap,rSnap,sSnap,scSnap]=await Promise.all([
+      db.collection('members').where('instrument','==',adminInst).get(),
+      db.collection('reeds').where('instrument','==',adminInst).get(),
+      db.collection('member_stocks').where('instrument','==',adminInst).get(),
+      db.collection('school_stocks').where('instrument','==',adminInst).get()
+    ]);
+    const members={};mSnap.forEach(d=>{members[d.id]=d.data().name;});
+    const reeds={};rSnap.forEach(d=>{reeds[d.id]={id:d.id,...d.data()};});
+    const stocks={};const lastUp={};
+    sSnap.forEach(d=>{
+      const v=d.data(); if(!stocks[v.memberId]) stocks[v.memberId]=[];
+      stocks[v.memberId].push({reedId:v.reedId,reedName:v.reedName||reeds[v.reedId]?.name||'不明',advanceMonths:v.advanceMonths||0});
+      if(v.updatedAt) lastUp[v.memberId]=v.updatedAt.toDate();
+    });
+    schoolQty={};scSnap.forEach(d=>{schoolQty[d.id]=d.data().qty||0;});
+    aData={members,reeds,stocks,lastUpdates:lastUp};
+  }catch(e){console.error(e);}
+}
+
+// ── 学校在庫タブ ──
+function renderStock(){
+  const c=document.getElementById('tab-stock-body');
+  const {reeds}=aData;
+  let h=`<button class="btn-dist" onclick="showDistModal()">📦 1ヶ月分を一括配布する</button>
+         <div class="sec-title">🏫 学校リード在庫</div>`;
+  if(!Object.keys(reeds||{}).length){
+    h+='<p style="text-align:center;color:var(--muted);padding:18px;">リードがありません</p>';
+    c.innerHTML=h; return;
+  }
+  Object.entries(reeds).forEach(([rid,reed])=>{
+    const qty=schoolQty[rid]??0; const low=qty<=5;
+    h+=`<div class="sc-card">
+      <div class="sc-head"><div class="sc-name">🎵 ${reed.name}</div><div class="sc-badge${low?' low':''}">${qty}本</div></div>
+      <div class="sc-body">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:13px;color:var(--muted);">現在の在庫</span>
+          <div class="sc-ctrl">
+            <button class="sc-adj" onclick="adjStock('${rid}',-1)">−</button>
+            <div class="sc-val" id="sq-${rid}">${qty}</div>
+            <button class="sc-adj" onclick="adjStock('${rid}',+1)">+</button>
+          </div>
+        </div>
+        ${low?'<div style="font-size:11px;color:#e74c3c;margin-top:5px;font-weight:700;">⚠️ 在庫が少なくなっています</div>':''}
+      </div>
+    </div>`;
+  });
+  h+=`<button class="btn-green btn-full" onclick="saveStock()" style="margin-top:14px;">💾 在庫を保存</button>`;
+  c.innerHTML=h;
+}
+function adjStock(rid,d){
+  schoolQty[rid]=Math.max(0,(schoolQty[rid]??0)+d);
+  renderStock();
+}
+async function saveStock(){
+  try{
+    const batch=db.batch();
+    Object.entries(schoolQty).forEach(([rid,qty])=>{
+      batch.set(db.collection('school_stocks').doc(rid),{instrument:adminInst,reedId:rid,qty,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    });
+    await batch.commit(); showOk('在庫を保存しました');
+  }catch(e){alert('保存失敗: '+e.message);}
+}
+
+// ── 一括配布 ──
+function showDistModal(){
+  const {members,stocks}=aData;
+  const map={};
+  Object.entries(stocks).forEach(([mid,ms])=>{
+    const mn=members[mid]||'不明';
+    ms.forEach(s=>{
+      if(!map[s.reedId]) map[s.reedId]={name:s.reedName,total:0,rows:[]};
+      map[s.reedId].total+=1; // 毎月1箱固定
+      map[s.reedId].rows.push({name:mn});
+    });
+  });
+  if(!Object.keys(map).length){alert('リードを設定しているメンバーがいません');return;}
+  const shortages=Object.entries(map).filter(([rid,i])=>(schoolQty[rid]??0)<i.total).map(([,i])=>`「${i.name}」: 必要${i.total}本 / 在庫${schoolQty[i.reedId]??0}本`);
+  let prev=''; let grand=0;
+  Object.entries(map).forEach(([,i])=>{
+    prev+=`<div class="dist-row" style="font-weight:700;background:#f5f5f5;"><span>🎵 ${i.name}</span><span>${i.total}本</span></div>`;
+    i.rows.forEach(r=>{ prev+=`<div class="dist-row" style="padding-left:12px;"><span>👤 ${r.name}</span><span>1本</span></div>`; });
+    grand+=i.total;
+  });
+  document.getElementById('dist-desc').innerHTML=`以下の本数を学校在庫から差し引きます。${shortages.length?'<span style="color:#e74c3c;font-weight:700;"> ⚠️在庫不足あり</span>':''}`;
+  document.getElementById('dist-preview').innerHTML=prev+(shortages.length?`<div style="color:#e74c3c;font-size:12px;margin-top:6px;">${shortages.join('<br>')}</div>`:'');
+  document.getElementById('dist-total').textContent=`合計 ${grand}本 を配布`;
+  window._distMap=map;
+  document.getElementById('dist-modal').classList.add('show');
+}
+async function execDistribute(){
+  const map=window._distMap; if(!map) return;
+  try{
+    const batch=db.batch();
+    Object.entries(map).forEach(([rid,i])=>{
+      const newQ=Math.max(0,(schoolQty[rid]??0)-i.total);
+      schoolQty[rid]=newQ;
+      batch.set(db.collection('school_stocks').doc(rid),{instrument:adminInst,reedId:rid,qty:newQ,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    });
+    await batch.commit();
+    closeModal('dist-modal'); renderStock(); showOk('配布完了！\n学校在庫を更新しました');
+  }catch(e){alert('配布失敗: '+e.message);}
+}
+
+// ── 部員一覧タブ ──
+function renderMembers(){
+  const c=document.getElementById('tab-members-body');
+  const {members,stocks,lastUpdates}=aData;
+  if(!Object.keys(members||{}).length){c.innerHTML='<p style="text-align:center;color:var(--muted);padding:18px;">部員がいません</p>';return;}
+  let h='<div class="sec-title">👥 部員のリード設定</div>';
+  Object.entries(members).forEach(([mid,mn])=>{
+    const ms=stocks[mid]||[];
+    const lu=lastUpdates[mid]; const luStr=lu?lu.toLocaleDateString('ja-JP'):'未更新';
+    h+=`<div class="mem-card"><div class="mem-name">👤 ${mn}</div><div class="mem-sub">最終更新: ${luStr}</div>`;
+    if(!ms.length){ h+=`<div style="color:var(--muted);font-size:12px;">未設定</div>`; }
+    else ms.forEach(s=>{
+      const adv=s.advanceMonths>0?`<span style="color:#e67e22;font-weight:700;"> ⚠️${s.advanceMonths}ヶ月前借り</span>`:'<span style="color:#27ae60;"> 前借りなし</span>';
+      h+=`<div class="stock-row"><div class="stock-name">${s.reedName}</div><div class="stock-sub">毎月1本${adv}</div></div>`;
+    });
+    h+=`</div>`;
+  });
+  c.innerHTML=h;
+}
+
+// ── リード管理タブ ──
+async function renderManage(){
+  const c=document.getElementById('tab-manage-body');
+  let cfg=defCfg();
+  try{
+    const snap=await db.collection('reed_options').doc('config').get();
+    if(snap.exists){ cfg=snap.data(); if(!cfg.colors||typeof cfg.colors[0]==='string') cfg.colors=[...DEFAULT_COLORS]; }
+  }catch(e){}
+  window._cfg=cfg;
+
+  c.innerHTML=`
+    <div class="sec-title">🏭 メーカー</div>
+    <div id="mk-list"></div>
+    <div style="display:flex;gap:8px;margin-top:7px;">
+      <input type="text" id="mk-in" placeholder="新しいメーカー名" style="flex:1;">
+      <button class="btn-green btn-sm" onclick="addMaker()">追加</button>
+    </div>
+    <div class="sec-title" style="margin-top:18px;">🎨 カラー</div>
+    <div id="col-list"></div>
+    <div style="display:flex;gap:8px;margin-top:7px;align-items:center;flex-wrap:wrap;">
+      <input type="text" id="col-lbl" placeholder="表示名（例: 紫）" style="flex:2;min-width:90px;">
+      <input type="color" id="col-hex" value="#9b59b6" style="width:42px;height:38px;padding:2px;border:2px solid var(--border);border-radius:6px;cursor:pointer;">
+      <button class="btn-green btn-sm" onclick="addColor()">追加</button>
+    </div>
+    <div class="sec-title" style="margin-top:18px;">💪 強度</div>
+    <div id="str-list"></div>
+    <div style="display:flex;gap:8px;margin-top:7px;">
+      <input type="text" id="str-in" placeholder="例: 2.5" style="flex:1;">
+      <button class="btn-green btn-sm" onclick="addStr()">追加</button>
+    </div>
+    <div class="sec-title" style="margin-top:18px;">🎵 登録済みリード</div>
+    <div id="reeds-manage"></div>
+  `;
+  drawMakers(cfg.makers||[]);
+  drawColors(cfg.colors||DEFAULT_COLORS);
+  drawStrs(cfg.strengths||[]);
+  drawReedsMgr();
+}
+function drawMakers(arr){
+  const c=document.getElementById('mk-list'); if(!c) return;
+  c.innerHTML=arr.map(m=>`<div class="mg-item"><div class="mg-name">${m}</div><button class="btn-del" onclick="rmMaker('${m}')">削除</button></div>`).join('');
+}
+function drawColors(arr){
+  const c=document.getElementById('col-list'); if(!c) return;
+  c.innerHTML=arr.map((co,i)=>`<div class="mg-item">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span style="width:16px;height:16px;border-radius:50%;background:${co.hex};border:2px solid #ccc;display:inline-block;"></span>
+      <div class="mg-name">${co.label}</div>
+    </div>
+    <button class="btn-del" onclick="rmColor(${i})">削除</button>
+  </div>`).join('');
+}
+function drawStrs(arr){
+  const c=document.getElementById('str-list'); if(!c) return;
+  c.innerHTML=arr.map(s=>`<div class="mg-item"><div class="mg-name">${s}</div><button class="btn-del" onclick="rmStr('${s}')">削除</button></div>`).join('');
+}
+function drawReedsMgr(){
+  const c=document.getElementById('reeds-manage'); if(!c) return;
+  const {reeds}=aData;
+  if(!Object.keys(reeds||{}).length){c.innerHTML='<p style="font-size:13px;color:var(--muted);">登録済みリードなし</p>';return;}
+  c.innerHTML=Object.values(reeds).map(r=>`<div class="mg-item"><div class="mg-name">${r.name}</div><button class="btn-del" onclick="delReed('${r.id}','${r.name.replace(/'/g,"\\'")}')">削除</button></div>`).join('');
+}
+async function saveCfg(cfg){ await db.collection('reed_options').doc('config').set(cfg); window._cfg=cfg; if(cfg.colors&&typeof cfg.colors[0]==='object') activeColors=cfg.colors; }
+async function addMaker(){
+  const v=document.getElementById('mk-in').value.trim(); if(!v){alert('入力してください');return;}
+  const cfg=window._cfg||defCfg(); if(cfg.makers.includes(v)){alert('すでに存在します');return;}
+  cfg.makers.push(v); await saveCfg(cfg); document.getElementById('mk-in').value=''; drawMakers(cfg.makers);
+}
+async function rmMaker(m){
+  if(!confirm(`「${m}」を削除しますか？`)) return;
+  const cfg=window._cfg||defCfg(); cfg.makers=cfg.makers.filter(x=>x!==m); await saveCfg(cfg); drawMakers(cfg.makers);
+}
+async function addColor(){
+  const lbl=document.getElementById('col-lbl').value.trim(); if(!lbl){alert('名前を入力してください');return;}
+  const hex=document.getElementById('col-hex').value;
+  const cfg=window._cfg||defCfg(); if(!cfg.colors||typeof cfg.colors[0]==='string') cfg.colors=[...DEFAULT_COLORS];
+  if(cfg.colors.some(c=>c.label===lbl)){alert('同じ名前が存在します');return;}
+  cfg.colors.push({key:lbl.replace(/\s+/g,'-').toLowerCase()+'-'+Date.now(),label:lbl,hex});
+  await saveCfg(cfg); document.getElementById('col-lbl').value=''; drawColors(cfg.colors);
+}
+async function rmColor(i){
+  const cfg=window._cfg||defCfg(); if(!cfg.colors||typeof cfg.colors[0]==='string') cfg.colors=[...DEFAULT_COLORS];
+  if(!confirm(`「${cfg.colors[i]?.label}」を削除しますか？`)) return;
+  cfg.colors.splice(i,1); await saveCfg(cfg); drawColors(cfg.colors);
+}
+async function addStr(){
+  const v=document.getElementById('str-in').value.trim(); if(!v){alert('入力してください');return;}
+  const cfg=window._cfg||defCfg(); if(cfg.strengths.includes(v)){alert('すでに存在します');return;}
+  cfg.strengths.push(v); cfg.strengths.sort((a,b)=>parseFloat(a)-parseFloat(b));
+  await saveCfg(cfg); document.getElementById('str-in').value=''; drawStrs(cfg.strengths);
+}
+async function rmStr(s){
+  if(!confirm(`「${s}」を削除しますか？`)) return;
+  const cfg=window._cfg||defCfg(); cfg.strengths=cfg.strengths.filter(x=>x!==s); await saveCfg(cfg); drawStrs(cfg.strengths);
+}
+async function delReed(rid,name){
+  if(!confirm(`「${name}」を完全に削除しますか？\n全部員のこのリードデータも消えます。`)) return;
+  try{
+    const batch=db.batch();
+    batch.delete(db.collection('reeds').doc(rid));
+    batch.delete(db.collection('school_stocks').doc(rid));
+    const sd=await db.collection('member_stocks').where('reedId','==',rid).get();
+    sd.forEach(d=>batch.delete(d.ref));
+    await batch.commit(); await fetchAdmin(); drawReedsMgr();
+  }catch(e){alert('削除失敗: '+e.message);}
+}
+
+// ── CSV出力 ──
+async function exportCSV(){
+  try{
+    await fetchAdmin();
+    const {members,stocks}=aData;
+    let csv='"名前","パート","リード銘柄","前借り月数"\n';
+    Object.entries(members).forEach(([mid,mn])=>{
+      const ms=stocks[mid]||[];
+      if(!ms.length){ csv+=`"${mn}","${instName(adminInst)}","未設定",""\n`; }
+      else ms.forEach((s,i)=>{ csv+=`"${i===0?mn:''}","${i===0?instName(adminInst):''}","${s.reedName}","${s.advanceMonths}"\n`; });
+    });
+    csv+='\n"学校在庫"\n"リード銘柄","在庫本数"\n';
+    Object.entries(aData.reeds).forEach(([rid,r])=>{ csv+=`"${r.name}","${schoolQty[rid]??0}"\n`; });
+    const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+    a.download=`リード在庫_${instName(adminInst)}_${new Date().toISOString().split('T')[0]}.csv`;
+    a.style.display='none'; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    alert('CSVをダウンロードしました');
+  }catch(e){alert('出力失敗: '+e.message);}
+}
+</script>
+</body>
+</html>
